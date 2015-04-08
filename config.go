@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 )
 
@@ -18,8 +17,6 @@ type ConfigFile struct {
 	LocalServer string `json:"local"`
 	// remote addr to connect, e.g. ssh://user@linode.my:22
 	RemoteServer string `json:"remote"`
-	// blocked host list
-	BlockedList []string `json:"blocked"`
 }
 
 // Load file from path
@@ -34,14 +31,7 @@ func NewConfigFile(path string) (self *ConfigFile, err error) {
 		return
 	}
 	self.PrivateKey = os.ExpandEnv(self.PrivateKey)
-	sort.Strings(self.BlockedList)
 	return
-}
-
-// test whether host is in blocked list or not
-func (self *ConfigFile) Blocked(host string) bool {
-	i := sort.SearchStrings(self.BlockedList, host)
-	return i < len(self.BlockedList) && self.BlockedList[i] == host
 }
 
 // Provide global config for mallory
@@ -116,12 +106,4 @@ func (self *Config) Load() (err error) {
 	}()
 
 	return
-}
-
-// test whether host is in blocked list or not
-func (self *Config) Blocked(host string) bool {
-	self.mutex.RLock()
-	blocked := self.File.Blocked(host)
-	self.mutex.RUnlock()
-	return blocked
 }

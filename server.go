@@ -2,7 +2,6 @@
 package mallory
 
 import (
-	"golang.org/x/net/publicsuffix"
 	"net/http"
 	"sync"
 )
@@ -14,8 +13,6 @@ type Server struct {
 	Direct *Direct
 	// ssh fetcher, to connect remote proxy server
 	SSH *SSH
-	// a cache
-	BlockedHosts map[string]bool
 	// for serve http
 	mutex sync.RWMutex
 }
@@ -31,37 +28,8 @@ func NewServer(c *Config) (self *Server, err error) {
 		Cfg:          c,
 		Direct:       NewDirect(),
 		SSH:          ssh,
-		BlockedHosts: make(map[string]bool),
 	}
 	return
-}
-
-func (self *Server) Blocked(host string) bool {
-	blocked, cached := false, false
-	host = HostOnly(host)
-	self.mutex.RLock()
-	if self.BlockedHosts[host] {
-		blocked = true
-		cached = true
-	}
-	self.mutex.RUnlock()
-
-	if !blocked {
-		tld, _ := publicsuffix.EffectiveTLDPlusOne(host)
-		blocked = self.Cfg.Blocked(tld)
-	}
-
-	if !blocked {
-		suffix, _ := publicsuffix.PublicSuffix(host)
-		blocked = self.Cfg.Blocked(suffix)
-	}
-
-	if blocked && !cached {
-		self.mutex.Lock()
-		self.BlockedHosts[host] = true
-		self.mutex.Unlock()
-	}
-	return blocked
 }
 
 // HTTP proxy accepts requests with following two types:
@@ -88,15 +56,10 @@ func (self *Server) Blocked(host string) bool {
 //    to the remote server and copy the reponse to client.
 //
 func (self *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	blocked := self.Blocked(r.URL.Host)
-	L.Printf("[%v] %s %s %s\n", blocked, r.Method, r.RequestURI, r.Proto)
+	L.Printf("%s %s %s\n", r.Method, r.RequestURI, r.Proto)
 
 	if r.Method == "CONNECT" {
-		if blocked {
-			self.SSH.Connect(w, r)
-		} else {
-			self.Direct.Connect(w, r)
-		}
+		self.SSH.Connect(w, r)
 	} else if r.URL.IsAbs() {
 		// This is an error if is not empty on Client
 		r.RequestURI = ""
@@ -113,11 +76,7 @@ func (self *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//   options that are desired for that particular connection and MUST NOT
 		//   be communicated by proxies over further connections.
 		r.Header.Del("Connection")
-		if blocked {
-			self.SSH.ServeHTTP(w, r)
-		} else {
-			self.Direct.ServeHTTP(w, r)
-		}
+		self.SSH.ServeHTTP(w, r)
 	} else {
 		L.Printf("%s is not a full URL path\n", r.RequestURI)
 	}

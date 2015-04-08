@@ -3,10 +3,12 @@ package mallory
 import (
 	"errors"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/user"
 	"sync"
 )
@@ -50,7 +52,20 @@ func NewSSH(c *Config) (self *SSH, err error) {
 		self.CliCfg.User = u.Username
 	}
 
-	// 1) try RSA keyring first
+	// 1) try agent first
+	for {
+		sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+		if err != nil {
+			break
+		}
+		agent := agent.NewClient(sock)
+		signers, err := agent.Signers()
+		if err != nil {
+			break
+		}
+		self.CliCfg.Auth = append(self.CliCfg.Auth, ssh.PublicKeys(signers...))
+	}
+	// 2) try RSA keyring
 	for {
 		id_rsa := c.File.PrivateKey
 		pem, err := ioutil.ReadFile(id_rsa)
@@ -67,7 +82,7 @@ func NewSSH(c *Config) (self *SSH, err error) {
 		// stop !!
 		break
 	}
-	// 2) try password
+	// 3) try password
 	for {
 		if self.URL.User == nil {
 			break

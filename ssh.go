@@ -36,7 +36,7 @@ func NewSSH(c *Config) (self *SSH, err error) {
 		CliCfg: &ssh.ClientConfig{},
 	}
 	// e.g.  ssh://user:passwd@192.168.1.1:1122
-	self.URL, err = url.Parse(c.File.RemoteServer)
+	self.URL, err = url.Parse(c.RemoteServer)
 	if err != nil {
 		return
 	}
@@ -67,15 +67,15 @@ func NewSSH(c *Config) (self *SSH, err error) {
 	}
 	// 2) try RSA keyring
 	for {
-		id_rsa := c.File.PrivateKey
+		id_rsa := c.PrivateKey
 		pem, err := ioutil.ReadFile(id_rsa)
 		if err != nil {
-			L.Printf("ReadFile %s failed:%s\n", c.File.PrivateKey, err)
+			L.Printf("ReadFile %s failed:%s\n", c.PrivateKey, err)
 			break
 		}
 		signer, err := ssh.ParsePrivateKey(pem)
 		if err != nil {
-			L.Printf("ParsePrivateKey %s failed:%s\n", c.File.PrivateKey, err)
+			L.Printf("ParsePrivateKey %s failed:%s\n", c.PrivateKey, err)
 			break
 		}
 		self.CliCfg.Auth = append(self.CliCfg.Auth, ssh.PublicKeys(signer))

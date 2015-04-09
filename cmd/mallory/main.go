@@ -4,25 +4,27 @@ import (
 	"flag"
 	m "github.com/justmao945/mallory"
 	"net/http"
+	"os"
 )
 
 var L = m.L
 
 func main() {
-	f := flag.String("config", "$HOME/.config/mallory.json", "config file")
+	c := &m.Config{}
+	flag.StringVar(&c.LocalServer, "addr", "127.0.0.1:1315", "mallory server address")
+	flag.StringVar(&c.RemoteServer, "remote", "", "remote server address")
+	flag.StringVar(&c.PrivateKey, "ssh-key", "$HOME/.ssh/id_rsa", "ssh private key file")
 	flag.Parse()
 
+	c.PrivateKey = os.ExpandEnv(c.PrivateKey)
+
 	L.Printf("Starting...\n")
-	c, err := m.NewConfig(*f)
-	if err != nil {
-		L.Fatalln(err)
-	}
 	srv, err := m.NewServer(c)
 	if err != nil {
 		L.Fatalln(err)
 	}
 
-	L.Printf("Listen and serve HTTP proxy on %s\n", c.File.LocalServer)
-	L.Printf("\tRemote SSH server: %s\n", c.File.RemoteServer)
-	L.Fatalln(http.ListenAndServe(c.File.LocalServer, srv))
+	L.Printf("Listen and serve HTTP proxy on %s\n", c.LocalServer)
+	L.Printf("Remote SSH server: %s\n", c.RemoteServer)
+	L.Fatalln(http.ListenAndServe(c.LocalServer, srv))
 }
